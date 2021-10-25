@@ -1,5 +1,6 @@
 ﻿//
 // Copyright (c) 2008-2011, Kenneth Bell
+// Copyright (c) 2021 Phoenix Technologies
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -61,62 +62,39 @@ namespace DiscUtils.Fat
         public FileName(string name, Encoding encoding, bool useLongName)
         {
             _raw = new byte[11];
-            byte[] bytes = encoding.GetBytes(name.ToUpperInvariant());
 
-            int nameIdx = 0;
-            int rawIdx = 0;
-            while (nameIdx < bytes.Length && bytes[nameIdx] != '.' && rawIdx < _raw.Length)
-            {
-                byte b = bytes[nameIdx++];
-                if (b < 0x20 || Contains(InvalidBytes, b))
-                {
-                    throw new ArgumentException("Invalid character in file name '" + (char)b + "'", nameof(name));
-                }
+            // Split out name (without extension) and extension
+            // Note that the "extension" includes everything after the first dot, including other dots
+            string strNameWithoutExtension, strExtension;
+            int nFirstDotIndex = name.IndexOf('.');
 
-                _raw[rawIdx++] = b;
+            if (nFirstDotIndex == -1) {
+                strNameWithoutExtension = name;
+                strExtension = "";
+            } else {
+                strNameWithoutExtension = name.Substring(0, nFirstDotIndex);
+                strExtension = name.Substring(nFirstDotIndex + 1);
             }
 
-            if (rawIdx > 8)
-            {
-                if(!useLongName)
-                    throw new ArgumentException("File name too long '" + name + "'", nameof(name));
-                LongName = name;
-            }
-            if (rawIdx == 0)
-            {
-                throw new ArgumentException("File name too short '" + name + "'", nameof(name));
+            // Encode name (without extension) and extension
+            byte[] arrNameWithoutExtension = encoding.GetBytes(strNameWithoutExtension.ToUpper());
+            byte[] arrExtension = encoding.GetBytes(strExtension.ToUpper());
+
+            // Check for long name
+            if ((arrNameWithoutExtension.Length > 8) || (arrExtension.Length > 3)) {
+                if (useLongName)
+                    LongName = name;
+                else
+                    throw new ArgumentException("File name \"" + name + "\" exceeds legacy FAT's 8.3 limitations", nameof(name));
             }
 
-            while (rawIdx < 8)
-            {
-                _raw[rawIdx++] = SpaceByte;
-            }
+            // Fill short name with spaces
+            for (int i = 0; i < _raw.Length; i++)
+                _raw[i] = (byte)' ';
 
-            if (nameIdx < bytes.Length && bytes[nameIdx] == '.')
-            {
-                ++nameIdx;
-            }
-
-            while (nameIdx < bytes.Length && rawIdx < _raw.Length)
-            {
-                byte b = bytes[nameIdx++];
-                if (b < 0x20 || Contains(InvalidBytes, b))
-                {
-                    throw new ArgumentException("Invalid character in file extension '" + (char)b + "'", nameof(name));
-                }
-
-                _raw[rawIdx++] = b;
-            }
-
-            while (rawIdx < 11)
-            {
-                _raw[rawIdx++] = SpaceByte;
-            }
-
-            if (nameIdx != bytes.Length && !useLongName)
-            {
-                throw new ArgumentException("File extension too long '" + name + "'", nameof(name));
-            }
+            // Copy name (without extension) and extension to proper places in short name, clamping length
+            Array.Copy(arrNameWithoutExtension, 0, _raw, 0, (arrNameWithoutExtension.Length > 8) ? 8 : arrNameWithoutExtension.Length);
+            Array.Copy(arrExtension, 0, _raw, 8, (arrExtension.Length > 3) ? 3 : arrExtension.Length);
         }
 
         /// <summary>
