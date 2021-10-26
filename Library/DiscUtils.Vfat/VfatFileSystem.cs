@@ -9,12 +9,14 @@ namespace DiscUtils.Vfat
 {
     public class VfatFileSystem : FatFileSystem
     {
-        private IDictionary<string, int> _filenameIndexer;
+        private IDictionary<string, int> _dicPathToIndex;
+        private IDictionary<string, ISet<string>> _dicUsedShortNamesPerDir;
 
         public VfatFileSystem(Stream data)
             : base(data, new VfatFileSystemOptions())
         {
-            _filenameIndexer = new Dictionary<string, int>();
+            _dicPathToIndex = new Dictionary<string, int>();
+            _dicUsedShortNamesPerDir = new Dictionary<string, ISet<string>>();
         }
 
         public override SparseStream OpenFile(string path, FileMode mode, FileAccess access)
@@ -26,9 +28,9 @@ namespace DiscUtils.Vfat
                 entryId = GetDirectoryEntry(RootDir, path, out Directory p);
                 parent = (VfatDirectory)p;
             }
-            catch (ArgumentException)
+            catch (ArgumentException ex)
             {
-                throw new IOException("Invalid path: " + path);
+                throw new IOException("Invalid path: " + path, ex);
             }
 
             if (parent == null)
@@ -45,7 +47,7 @@ namespace DiscUtils.Vfat
 
             if ((dirEntry.Attributes & FatAttributes.Directory) != 0)
             {
-                throw new IOException("Attempt to open directory as a file");
+                throw new IOException("Attempted to open directory \"" + path + "\" as a file");
             }
             return parent.OpenFile(dirEntry.Name, mode, access);
         }
@@ -60,23 +62,32 @@ namespace DiscUtils.Vfat
             return new VfatDirectory(this, fatStream);
         }
 
-        internal override FileName FileNameFactory(string name)
+        internal override FileName FileNameFactory(string name, string strParentDirPath)
         {
-            return VfatFileName.FromName(name, this, GetUniqueIndex(name));
+            return VfatFileName.FromName(name, this, GetUniqueIndex(name, strParentDirPath));
         }
 
-        public static new FatFileSystem FormatFloppy(Stream stream, FloppyDiskType type, string label)
+        public int GetUniqueIndex(string name, string strParentDirPath)
         {
-            FormatStream(stream, type, label);
-            return new VfatFileSystem(stream);
-        }
+            string strFullPath = strParentDirPath + @"\" + name;
+            
+            if (_dicPathToIndex.ContainsKey(strFullPath))
+                return _dicPathToIndex[strFullPath];
 
-        public int GetUniqueIndex(string name)
-        {
-            if(!_filenameIndexer.ContainsKey(name))
-                _filenameIndexer.Add(name, 0);  
+            if (!_dicUsedShortNamesPerDir.ContainsKey(strParentDirPath))
+                _dicUsedShortNamesPerDir.Add(strParentDirPath, new HashSet<string>());
 
-            return ++_filenameIndexer[name];
+            for (int nIndex = 1; nIndex < VfatFileName.INDEX_MAX; nIndex++) {
+                string strShortName = VfatFileName.GetShortName(name, nIndex);
+                if (!_dicUsedShortNamesPerDir[strParentDirPath].Contains(strShortName)) {
+                    _dicUsedShortNamesPerDir[strParentDirPath].Add(strShortName);
+                    _dicPathToIndex.Add(strFullPath, nIndex);
+                    return nIndex;
+                }
+            }
+
+            throw new IOException(string.Format("There are over {0} files with names similar to \"{1}\" in \"{2}\"",
+                VfatFileName.INDEX_MAX, name, strParentDirPath));
         }
     }
 }

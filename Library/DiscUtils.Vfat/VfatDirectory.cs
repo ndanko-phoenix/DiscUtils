@@ -39,12 +39,9 @@ namespace DiscUtils.Vfat
                 newEntry.LastWriteTime = newEntry.CreationTime;
 
                 fileId = AddEntry(newEntry);
-
-                return new FatFileStream(FileSystem, this, fileId, fileAccess);
             }
 
-            // Should never get here...
-            throw new NotImplementedException();
+            return new FatFileStream(FileSystem, this, fileId, fileAccess);
         }
     }
 }

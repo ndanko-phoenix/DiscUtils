@@ -847,12 +847,13 @@ namespace DiscUtils.Fat
 
             Directory focusDir = _rootDir;
 
+            string strParentPath = @"\";
             for (int i = 0; i < pathElements.Length; ++i)
             {
                 FileName name;
                 try
                 {
-                    name = new FileName(pathElements[i], FatOptions.FileNameEncoding);
+                    name = FileNameFactory(pathElements[i], strParentPath);
                 }
                 catch (ArgumentException ae)
                 {
@@ -866,6 +867,7 @@ namespace DiscUtils.Fat
                 }
 
                 focusDir = child;
+                strParentPath += @"\" + pathElements[i];
             }
         }
 
@@ -1629,7 +1631,7 @@ namespace DiscUtils.Fat
                 parent = null;
                 return 0;
             }
-            entryId = dir.FindEntry(FileNameFactory(pathEntries[pathOffset]));
+            entryId = dir.FindEntry(FileNameFactory(pathEntries[pathOffset], string.Join(@"\", pathEntries, 0, pathOffset)));
             if (entryId >= 0)
             {
                 if (pathOffset == pathEntries.Length - 1)
@@ -1648,7 +1650,7 @@ namespace DiscUtils.Fat
             return -1;
         }
 
-        internal virtual FileName FileNameFactory(string name)
+        internal virtual FileName FileNameFactory(string name, string strParentDirPath)
         {
             return new FileName(name, FatOptions.FileNameEncoding);
         }
@@ -1742,11 +1744,15 @@ namespace DiscUtils.Fat
         /// <param name="type">The type of floppy to create.</param>
         /// <param name="label">The volume label for the floppy (or null).</param>
         /// <returns>An object that provides access to the newly created floppy disk image.</returns>
-        public static FatFileSystem FormatFloppy(Stream stream, FloppyDiskType type, string label)
+        public static T FormatFloppy<T>(Stream stream, FloppyDiskType type, string label)
+            where T : FatFileSystem
         {
             FormatStream(stream, type, label);
-            return new FatFileSystem(stream);
+            return (T)Activator.CreateInstance(typeof(T), stream);
         }
+
+        public static FatFileSystem FormatFloppy(Stream stream, FloppyDiskType type, string label)
+            => FormatFloppy<FatFileSystem>(stream, type, label);
 
         protected static void FormatStream(Stream stream, FloppyDiskType type, string label)
         {
@@ -1803,6 +1809,9 @@ namespace DiscUtils.Fat
             stream.Position = pos;
         }
 
+        public static FatFileSystem FormatPartition(VirtualDisk disk, int partitionIndex, string label)
+            => FormatPartition<FatFileSystem>(disk, partitionIndex, label);
+
         /// <summary>
         /// Formats a virtual hard disk partition.
         /// </summary>
@@ -1810,11 +1819,11 @@ namespace DiscUtils.Fat
         /// <param name="partitionIndex">The index of the partition on the disk.</param>
         /// <param name="label">The volume label for the partition (or null).</param>
         /// <returns>An object that provides access to the newly created partition file system.</returns>
-        public static FatFileSystem FormatPartition(VirtualDisk disk, int partitionIndex, string label)
+        public static T FormatPartition<T>(VirtualDisk disk, int partitionIndex, string label) where T : FatFileSystem
         {
             using (Stream partitionStream = disk.Partitions[partitionIndex].Open())
             {
-                return FormatPartition(
+                return FormatPartition<T>(
                     partitionStream,
                     label,
                     disk.Geometry,
@@ -1823,6 +1832,15 @@ namespace DiscUtils.Fat
                     0);
             }
         }
+
+        public static FatFileSystem FormatPartition(
+            Stream stream,
+            string label,
+            Geometry diskGeometry,
+            int firstSector,
+            int sectorCount,
+            short reservedSectors) 
+            => FormatPartition<FatFileSystem>(stream, label, diskGeometry, firstSector, sectorCount, reservedSectors);
 
         /// <summary>
         /// Creates a formatted hard disk partition in a stream.
@@ -1834,13 +1852,13 @@ namespace DiscUtils.Fat
         /// <param name="sectorCount">The number of sectors in this partition.</param>
         /// <param name="reservedSectors">The number of reserved sectors at the start of the partition.</param>
         /// <returns>An object that provides access to the newly created partition file system.</returns>
-        public static FatFileSystem FormatPartition(
+        public static T FormatPartition<T>(
             Stream stream,
             string label,
             Geometry diskGeometry,
             int firstSector,
             int sectorCount,
-            short reservedSectors)
+            short reservedSectors) where T : FatFileSystem
         {
             long pos = stream.Position;
 
@@ -1976,7 +1994,7 @@ namespace DiscUtils.Fat
              */
 
             stream.Position = pos;
-            return new FatFileSystem(stream);
+            return (T)Activator.CreateInstance(typeof(T), stream);
         }
 
 #endregion
