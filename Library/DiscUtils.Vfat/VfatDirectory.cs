@@ -18,6 +18,14 @@ namespace DiscUtils.Vfat
         {
         }
 
+        private void CreateLFNEntries(VfatFileName name) {
+            for (int nPart = name.LastPart; nPart >= 0; nPart--) {
+                VfatDirectoryEntry entry = new VfatDirectoryEntry(nPart, (VfatFileSystemOptions)FileSystem.FatOptions,
+                    name, FileSystem.FatVariant);
+                AddEntry(entry);
+            }
+        }
+
         internal override SparseStream OpenFile(FileName name, FileMode mode, FileAccess fileAccess)
         {
             long fileId = FindEntry(name);
@@ -25,12 +33,7 @@ namespace DiscUtils.Vfat
 
             if ((mode == FileMode.OpenOrCreate || mode == FileMode.CreateNew || mode == FileMode.Create) && !exists)
             {
-                var vname = (VfatFileName)name;
-                for (int part = vname.LastPart; part>=0; --part)
-                {
-                    var phony = new VfatDirectoryEntry(part, (VfatFileSystemOptions)FileSystem.FatOptions, vname, FileSystem.FatVariant);
-                    AddEntry(phony);
-                }
+                CreateLFNEntries((VfatFileName)name);
 
                 // Create new file
                 var newEntry = new DirectoryEntry(FileSystem.FatOptions, name, FatAttributes.Archive, FileSystem.FatVariant);
@@ -42,6 +45,11 @@ namespace DiscUtils.Vfat
             }
 
             return new FatFileStream(FileSystem, this, fileId, fileAccess);
+        }
+
+        internal override Directory CreateChildDirectory(FileName name) {
+            CreateLFNEntries((VfatFileName)name);
+            return base.CreateChildDirectory(name);
         }
     }
 }

@@ -88,6 +88,36 @@ namespace LibraryTests.Vfat
             }
         }
 
+		[Fact]
+		public void SimilarNames() {
+			string strData1 = "First file data";
+			string strData2 = "Second file data";
+			string strFilePath1 = @"\My_Test_File-01.123";
+			string strFilePath2 = @"\My_Test_File-02.123";
+
+			using (Stream stmImage = new MemoryStream()) {
+				using (DiscFileSystem fs = FatFileSystem.FormatFloppy<VfatFileSystem>(stmImage, FloppyDiskType.HighDensity, null)) {
+					// write file 1 and read back
+					using (Stream stmFile1Write = fs.OpenFile(strFilePath1, FileMode.CreateNew, FileAccess.Write))
+						WriteAsciiText(stmFile1Write, strData1);
+
+					using (Stream stmFile1Read = fs.OpenFile(strFilePath1, FileMode.Open, FileAccess.Read))
+						Assert.Equal(ReadAsciiText(stmFile1Read), strData1);
+
+					// write file 2 and read back
+					using (Stream stmFile2Write = fs.OpenFile(strFilePath2, FileMode.Create, FileAccess.Write))
+						WriteAsciiText(stmFile2Write, strData2);
+
+					using (Stream stmFile2Read = fs.OpenFile(strFilePath2, FileMode.Open, FileAccess.Read))
+						Assert.Equal(ReadAsciiText(stmFile2Read), strData2);
+
+					// check that file 1 hasn't changed
+					using (Stream stmFile1Read = fs.OpenFile(strFilePath1, FileMode.Open, FileAccess.Read))
+						Assert.Equal(ReadAsciiText(stmFile1Read), strData1);
+				}
+			}
+		}
+
 		private void WriteAsciiText(Stream stmFile, string strText) {
 			byte[] arrData = Encoding.ASCII.GetBytes(strText);
 			stmFile.Write(arrData, 0, arrData.Length);

@@ -137,7 +137,7 @@ namespace DiscUtils.Fat
             return FileSystem.GetDirectory(this, id);
         }
 
-        internal Directory CreateChildDirectory(FileName name)
+        internal virtual Directory CreateChildDirectory(FileName name)
         {
             long id = FindEntry(name);
             if (id >= 0)

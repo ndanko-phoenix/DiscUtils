@@ -16,7 +16,8 @@ namespace DiscUtils.Vfat
 
         public static VfatFileName FromPath(string path, VfatFileSystem system)
         {
-            return FromName(Utilities.GetFileFromPath(path), system, 1);
+            return FromName(Utilities.GetFileFromPath(path), system, system.GetUniqueIndex(Utilities.GetFileFromPath(path),
+                Utilities.GetDirectoryFromPath(path)));
         }
 
         public static VfatFileName FromName(string name, VfatFileSystem system,  int index)
